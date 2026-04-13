@@ -1,224 +1,52 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Delete } from 'lucide-react';
-
-// 숫자 포맷팅 (한국어 로케일, 천 단위 콤마)
-const INTEGER_FORMATTER = new Intl.NumberFormat("ko-KR", {
-  maximumFractionDigits: 0,
-});
-
-function formatOperand(operand) {
-  if (operand == null) return;
-  if (operand === "오류") return operand;
-  
-  const [integer, decimal] = operand.split(".");
-  if (decimal == null) return INTEGER_FORMATTER.format(integer);
-  return `${INTEGER_FORMATTER.format(integer)}.${decimal}`;
-}
-
-export default function App() {
-  const [currentOperand, setCurrentOperand] = useState("");
-  const [previousOperand, setPreviousOperand] = useState("");
-  const [operation, setOperation] = useState(null);
-  const [overwrite, setOverwrite] = useState(false);
-
-  // 계산 로직
-  const evaluate = useCallback(() => {
-    const prev = parseFloat(previousOperand);
-    const current = parseFloat(currentOperand);
-    
-    if (isNaN(prev) || isNaN(current)) return "";
-    
-    let computation = "";
-    switch (operation) {
-      case "+":
-        computation = prev + current;
-        break;
-      case "-":
-        computation = prev - current;
-        break;
-      case "×":
-        computation = prev * current;
-        break;
-      case "÷":
-        computation = current === 0 ? "오류" : prev / current;
-        break;
-      case "%":
-        computation = prev % current;
-        break;
-      default:
-        return "";
-    }
-    return computation.toString();
-  }, [currentOperand, previousOperand, operation]);
-
-  // 숫자 입력 처리
-  const appendNumber = useCallback((number) => {
-    if (currentOperand === "오류") return;
-    if (overwrite) {
-      setCurrentOperand(number);
-      setOverwrite(false);
-      return;
-    }
-    if (number === "." && currentOperand.includes(".")) return;
-    if (currentOperand === "0" && number !== ".") {
-      setCurrentOperand(number);
-      return;
-    }
-    setCurrentOperand(`${currentOperand}${number}`);
-  }, [currentOperand, overwrite]);
-
-  // 연산자 선택 처리
-  const chooseOperation = useCallback((op) => {
-    if (currentOperand === "오류") return;
-    if (currentOperand === "" && previousOperand === "") return;
-    
-    if (currentOperand === "") {
-      setOperation(op);
-      return;
-    }
-    
-    if (previousOperand === "") {
-      setPreviousOperand(currentOperand);
-      setOperation(op);
-      setCurrentOperand("");
-      return;
-    }
-    
-    setPreviousOperand(evaluate());
-    setOperation(op);
-    setCurrentOperand("");
-  }, [currentOperand, previousOperand, evaluate]);
-
-  // 초기화 (AC)
-  const clear = useCallback(() => {
-    setCurrentOperand("");
-    setPreviousOperand("");
-    setOperation(null);
-    setOverwrite(false);
-  }, []);
-
-  // 지우기 (Backspace)
-  const deleteNumber = useCallback(() => {
-    if (overwrite) {
-      setCurrentOperand("");
-      setOverwrite(false);
-      return;
-    }
-    if (currentOperand === "오류") {
-      clear();
-      return;
-    }
-    if (currentOperand == null || currentOperand === "") return;
-    setCurrentOperand(currentOperand.slice(0, -1));
-  }, [currentOperand, overwrite, clear]);
-
-  // 등호(=) 계산 실행
-  const calculateResult = useCallback(() => {
-    if (operation == null || currentOperand === "" || previousOperand === "") return;
-    
-    setCurrentOperand(evaluate());
-    setPreviousOperand("");
-    setOperation(null);
-    setOverwrite(true);
-  }, [operation, currentOperand, previousOperand, evaluate]);
-
-  // 키보드 이벤트 리스너
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      const { key } = e;
-      if (/[0-9.]/.test(key)) {
-        e.preventDefault();
-        appendNumber(key);
-      } else if (key === "+" || key === "-") {
-        e.preventDefault();
-        chooseOperation(key);
-      } else if (key === "*" || key === "x" || key === "X") {
-        e.preventDefault();
-        chooseOperation("×");
-      } else if (key === "/") {
-        e.preventDefault();
-        chooseOperation("÷");
-      } else if (key === "%") {
-        e.preventDefault();
-        chooseOperation("%");
-      } else if (key === "Enter" || key === "=") {
-        e.preventDefault();
-        calculateResult();
-      } else if (key === "Backspace") {
-        e.preventDefault();
-        deleteNumber();
-      } else if (key === "Escape") {
-        e.preventDefault();
-        clear();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [appendNumber, chooseOperation, calculateResult, deleteNumber, clear]);
-
-  // 버튼 컴포넌트
-  const Button = ({ children, onClick, className = "", variant = "default" }) => {
-    const baseStyle = "flex items-center justify-center text-2xl font-medium rounded-2xl transition-all duration-200 active:scale-95 select-none";
-    
-    const variants = {
-      default: "bg-gray-800 text-gray-100 hover:bg-gray-700",
-      action: "bg-gray-600 text-gray-100 hover:bg-gray-500",
-      operation: "bg-indigo-500 text-white hover:bg-indigo-400",
-    };
-
-    return (
-      <button 
-        onClick={onClick} 
-        className={`${baseStyle} ${variants[variant]} ${className}`}
-      >
-        {children}
-      </button>
-    );
-  };
-
-  return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4 font-sans">
-      <div className="bg-gray-900 w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-gray-800">
-        
-        {/* 디스플레이 영역 */}
-        <div className="mb-6 flex flex-col items-end justify-end h-28 bg-gray-950 rounded-2xl p-4 border border-gray-800">
-          <div className="text-gray-400 text-lg min-h-[1.75rem] break-all">
-            {formatOperand(previousOperand)} {operation}
-          </div>
-          <div className="text-white text-4xl font-semibold tracking-wider break-all">
-            {currentOperand === "" ? "0" : formatOperand(currentOperand)}
-          </div>
-        </div>
-
-        {/* 키패드 영역 */}
-        <div className="grid grid-cols-4 gap-3 h-96">
-          <Button onClick={clear} variant="action" className="text-rose-400 font-semibold">AC</Button>
-          <Button onClick={deleteNumber} variant="action"><Delete size={24} /></Button>
-          <Button onClick={() => chooseOperation("%")} variant="action">%</Button>
-          <Button onClick={() => chooseOperation("÷")} variant="operation">÷</Button>
-          
-          <Button onClick={() => appendNumber("7")}>7</Button>
-          <Button onClick={() => appendNumber("8")}>8</Button>
-          <Button onClick={() => appendNumber("9")}>9</Button>
-          <Button onClick={() => chooseOperation("×")} variant="operation">×</Button>
-          
-          <Button onClick={() => appendNumber("4")}>4</Button>
-          <Button onClick={() => appendNumber("5")}>5</Button>
-          <Button onClick={() => appendNumber("6")}>6</Button>
-          <Button onClick={() => chooseOperation("-")} variant="operation">-</Button>
-          
-          <Button onClick={() => appendNumber("1")}>1</Button>
-          <Button onClick={() => appendNumber("2")}>2</Button>
-          <Button onClick={() => appendNumber("3")}>3</Button>
-          <Button onClick={() => chooseOperation("+")} variant="operation">+</Button>
-          
-          <Button onClick={() => appendNumber("0")} className="col-span-2">0</Button>
-          <Button onClick={() => appendNumber(".")}>.</Button>
-          <Button onClick={calculateResult} variant="operation">=</Button>
-        </div>
-        
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>계산기</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Noto+Sans+KR:wght@400;600&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <main class="app" aria-label="계산기">
+    <div class="calculator">
+      <header class="calc-header">
+        <h1 class="title">계산기</h1>
+      </header>
+      <div class="display" role="status" aria-live="polite" aria-atomic="true">
+        <div class="expression" id="expression" aria-hidden="true"></div>
+        <div class="result" id="display">0</div>
       </div>
+      <div class="keys" id="keys">
+        <button type="button" class="key key-fn" data-action="clear" aria-label="전체 지우기">AC</button>
+        <button type="button" class="key key-fn" data-action="sign" aria-label="부호 바꾸기">±</button>
+        <button type="button" class="key key-fn" data-action="percent" aria-label="퍼센트">%</button>
+        <button type="button" class="key key-op" data-action="operator" data-value="/" aria-label="나누기">÷</button>
+
+        <button type="button" class="key key-num" data-action="digit" data-value="7">7</button>
+        <button type="button" class="key key-num" data-action="digit" data-value="8">8</button>
+        <button type="button" class="key key-num" data-action="digit" data-value="9">9</button>
+        <button type="button" class="key key-op" data-action="operator" data-value="*" aria-label="곱하기">×</button>
+
+        <button type="button" class="key key-num" data-action="digit" data-value="4">4</button>
+        <button type="button" class="key key-num" data-action="digit" data-value="5">5</button>
+        <button type="button" class="key key-num" data-action="digit" data-value="6">6</button>
+        <button type="button" class="key key-op" data-action="operator" data-value="-" aria-label="빼기">−</button>
+
+        <button type="button" class="key key-num" data-action="digit" data-value="1">1</button>
+        <button type="button" class="key key-num" data-action="digit" data-value="2">2</button>
+        <button type="button" class="key key-num" data-action="digit" data-value="3">3</button>
+        <button type="button" class="key key-op" data-action="operator" data-value="+" aria-label="더하기">+</button>
+
+        <button type="button" class="key key-num key-zero" data-action="digit" data-value="0">0</button>
+        <button type="button" class="key key-num" data-action="decimal" aria-label="소수점">.</button>
+        <button type="button" class="key key-op key-equals" data-action="equals" aria-label="계산 결과">=</button>
+      </div>
+      <p class="hint">키보드: 숫자·연산자·Enter(=)·Esc(AC)·Backspace</p>
     </div>
-  );
-}
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
